@@ -1,0 +1,50 @@
+#!/bin/bash
+
+echo "=== SERVER PERFORMANCE STATS ==="
+echo ""
+
+# Total CPU usage (percentage) using mpstat for better accuracy
+if command -v mpstat &>/dev/null; then
+  cpu_usage=$(mpstat 1 1 | awk '/Average:/ {print 100 - $12}')
+else
+  # fallback if mpstat isn't available
+  cpu_idle=$(top -bn1 | grep "Cpu(s)" | awk '{print $8}' | sed 's/,//')
+  cpu_usage=$(echo "100 - $cpu_idle" | bc)
+fi
+echo "Total CPU Usage: ${cpu_usage}%"
+
+# Memory Usage (Free vs Used and Percentage)
+mem_total=$(free -m | awk '/Mem:/ {print $2}')
+mem_used=$(free -m | awk '/Mem:/ {print $3}')
+mem_free=$(free -m | awk '/Mem:/ {print $4}')
+mem_pct_used=$(echo "scale=2; ($mem_used/$mem_total)*100" | bc)
+echo "Memory Usage: ${mem_used}MB used / ${mem_free}MB free (${mem_pct_used}%)"
+
+# Disk Usage (Root partition)
+# Using df -h for human-readable output
+disk_info=$(df -h --total | grep total)
+disk_total=$(echo "$disk_info" | awk '{print $2}')
+disk_used=$(echo "$disk_info" | awk '{print $3}')
+disk_free=$(echo "$disk_info" | awk '{print $4}')
+
+# Convert to GB for clarity
+disk_total_gb=$(echo "$disk_total" | sed 's/G//')
+disk_used_gb=$(echo "$disk_used" | sed 's/G//')
+disk_free_gb=$(echo "$disk_free" | sed 's/G//')
+
+disk_pct_used=$(echo "scale=2; ($disk_used_gb/$disk_total_gb)*100" | bc)
+
+echo "Disk Usage (Total): ${disk_used_gb}GB used / ${disk_free_gb}GB free (${disk_pct_used}%)"
+
+echo ""
+# Top 5 processes by CPU usage
+echo "Top 5 Processes by CPU Usage:"
+ps aux --sort=-%cpu | head -n 6 | tail -n 5 | awk '{printf "%-10s %-8s %-8s\n", $11, $3, $4}'
+
+echo ""
+# Top 5 processes by Memory usage
+echo "Top 5 Processes by Memory Usage:"
+ps aux --sort=-%mem | head -n 6 | tail -n 5 | awk '{printf "%-10s %-8s %-8s\n", $11, $3, $4}'
+
+echo ""
+echo "=== END OF REPORT ==="
